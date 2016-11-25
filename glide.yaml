@@ -7,6 +7,9 @@ import:
   subpackages:
   - kafka
   - utils
+- package: github.com/larskluge/babl
+  subpackages:
+  - bablnaming
 - package: github.com/urfave/cli
 testImport:
 - package: github.com/onsi/ginkgo

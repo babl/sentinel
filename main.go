@@ -13,6 +13,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/larskluge/babl-server/kafka"
 	. "github.com/larskluge/babl-server/utils"
+	bn "github.com/larskluge/babl/bablnaming"
 )
 
 //Warning log level
@@ -63,12 +64,15 @@ func run(kafkaBrokers string, dbg bool) {
 	if dbg {
 		log.SetLevel(log.DebugLevel)
 	}
-	ParseEvents(kafkaBrokers)
+	brokers := strings.Split(kafkaBrokers, ",")
+	Cluster := SplitFirst(kafkaBrokers, ".")
+	ParseEvents(Cluster, brokers)
 
 }
 
-func ParseEvents(kafkaBrokers string) {
-	client := *kafka.NewClient([]string{kafkaBrokers}, "sentinel", true)
+func ParseEvents(Cluster string, brokers []string) {
+
+	client := *kafka.NewClient(brokers, "sentinel", true)
 	defer client.Close()
 
 	consumer, err := sarama.NewConsumerFromClient(client)
@@ -81,24 +85,37 @@ func ParseEvents(kafkaBrokers string) {
 	cp, err := consumer.ConsumePartition(TopicEvents, 0, offsetNewest)
 	Check(err)
 	defer cp.Close()
-	Cluster := SplitFirst(kafkaBrokers, ".")
 	for msg := range cp.Messages() {
 		var m Event
 		err := json.Unmarshal(msg.Value, &m)
 		Check(err)
-		log.WithFields(log.Fields{"broker": kafkaBrokers, "event": m}).Debug("Docker Event")
+		log.WithFields(log.Fields{"broker": brokers, "event": m}).Debug("Docker Event")
 		if m.Type == "container" && EventsRegex.MatchString(m.Status) {
 			notify(Cluster, m)
+			notifyOom(Cluster, m)
 		}
+		// if m.Type == "container" && m.Status == "oom" {
+		// 	notifyOom(Cluster, m)
+		// }
 	}
 }
 
 func notify(Cluster string, m Event) {
 	log.WithFields(log.Fields{"cluster": Cluster, "instance": m.Actor.Attributes.ComDockerSwarmTaskName, "status": m.Status, "id": m.ID, "from": m.From}).Info("Docker Event")
 	str := fmt.Sprintf("[%s] %s --> %s", Cluster, m.Actor.Attributes.ComDockerSwarmTaskName, m.Status)
-	args := []string{"-async", "-c", "sandbox.babl.sh:4445", "babl/events", "-e", "EVENT=babl:error" + m.Status}
+	args := []string{"-c", "sandbox.babl.sh:4445", "babl/events", "-e", "EVENT=babl:error"}
 	cmd := exec.Command("/bin/babl", args...)
 	cmd.Stdin = strings.NewReader(str)
+	err := cmd.Run()
+	Check(err)
+}
+
+//babl -c 192.168.99.100:4445 babl/oom-restart -e MODULE=larskluge/image-resize -e INSTANCE_ID=7b43d4142a24
+func notifyOom(Cluster string, m Event) {
+	module := bn.ServiceToModule(m.Actor.Attributes.ComDockerSwarmServiceName)
+	args := []string{"-c", Cluster + ".babl.sh:4445", "babl/oom-restart", "-e", "MODULE=" + module, "-e", "INSTANCE_ID=" + m.ID}
+	log.WithFields(log.Fields{"args": args}).Info("oom-restart")
+	cmd := exec.Command("/bin/babl", args...)
 	err := cmd.Run()
 	Check(err)
 }
