@@ -112,7 +112,7 @@ func notify(Cluster string, m Event) {
 //babl -c 192.168.99.100:4445 babl/oom-restart -e MODULE=larskluge/image-resize -e INSTANCE_ID=7b43d4142a24
 func notifyOom(Cluster string, m Event) {
 	module := bn.ServiceToModule(m.Actor.Attributes.ComDockerSwarmServiceName)
-	args := []string{"-c", Cluster + ".babl.sh:4445", "babl/oom-restart", "-e", "MODULE=" + module, "-e", "INSTANCE_ID=" + m.ID}
+	args := []string{"-c", Cluster + ".babl.sh:4445", "babl/events", "-e", "EVENT=babl:module:oom", "-e", "MODULE=" + module, "-e", "INSTANCE_ID=" + m.ID}
 	log.WithFields(log.Fields{"args": args}).Info("oom-restart")
 	cmd := exec.Command("/bin/babl", args...)
 	err := cmd.Run()
