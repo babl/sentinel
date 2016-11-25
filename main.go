@@ -92,11 +92,10 @@ func ParseEvents(Cluster string, brokers []string) {
 		log.WithFields(log.Fields{"broker": brokers, "event": m}).Debug("Docker Event")
 		if m.Type == "container" && EventsRegex.MatchString(m.Status) {
 			notify(Cluster, m)
+		}
+		if m.Type == "container" && m.Status == "oom" {
 			notifyOom(Cluster, m)
 		}
-		// if m.Type == "container" && m.Status == "oom" {
-		// 	notifyOom(Cluster, m)
-		// }
 	}
 }
 
