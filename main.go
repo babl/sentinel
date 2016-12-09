@@ -101,7 +101,11 @@ func ParseEvents(Cluster string, brokers []string) {
 
 func notify(Cluster string, m Event) {
 	log.WithFields(log.Fields{"cluster": Cluster, "instance": m.Actor.Attributes.ComDockerSwarmTaskName, "status": m.Status, "id": m.ID, "from": m.From}).Info("Docker Event")
-	str := fmt.Sprintf("[%s] %s --> %s", Cluster, m.Actor.Attributes.ComDockerSwarmTaskName, m.Status)
+	name := m.Actor.Attributes.ComDockerSwarmTaskName
+	if name == "" {
+		name = m.From
+	}
+	str := fmt.Sprintf("[%s] %s --> %s", Cluster, name, m.Status)
 	args := []string{"-c", "sandbox.babl.sh:4445", "babl/events", "-e", "EVENT=babl:error"}
 	cmd := exec.Command("/bin/babl", args...)
 	cmd.Stdin = strings.NewReader(str)
